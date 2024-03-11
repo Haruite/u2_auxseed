@@ -124,7 +124,13 @@ class U2AuxSeed:
                     tid, _hash = _tid_hash.split('_')
                     if _hash not in self.hashes_in_client:
                         logger.info(f'{path} -> torrent {tid}')
-                        content = await update.fetch_torrent(tid)
+                        if fn := self.hash_to_fn.get(_hash):
+                            with open(os.path.join(torrents_folder, fn), 'rb') as fp:
+                                content = fp.read()
+                            logger.info(f'Read .torrent file {fn}')
+                        else:
+                            content = await update.fetch_torrent(tid)
+                            logger.info(f'Downloaded .torrent file of torrent {tid}')
                         self.add_torrent_to_single_file(path, content, tid, _hash)
                     else:
                         logger.debug(f'{path} -> torrent {tid} already added')

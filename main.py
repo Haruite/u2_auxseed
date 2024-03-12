@@ -85,7 +85,10 @@ class U2AuxSeed:
         return ''
 
     def add_torrent_to_single_file(self, path: str, content: bytes, tid: str, info_hash: str):
-        info_dict = bdecode(content)[b'info']
+        try:
+            info_dict = bdecode(content)[b'info']
+        except:
+            return
         save_path, filename = os.path.split(path)
 
         if b'files' not in info_dict:
@@ -141,7 +144,10 @@ class U2AuxSeed:
             logger.debug(f'{path} cannot be auxseeded')
 
     def add_torrent_to_multi_file(self, path: str, file_list: list[str], content: bytes, tid: str, _hash: str):
-        info_dict = bdecode(content)[b'info']
+        try:
+            info_dict = bdecode(content)[b'info']
+        except:
+            return
         if b'files' not in info_dict:
             size1 = info_dict[b'length']
             size2 = 0

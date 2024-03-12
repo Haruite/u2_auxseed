@@ -84,7 +84,10 @@ class Update:
         return content
 
     def update_size_id(self, torrent_id: int, content: bytes):
-        torrent = bdecode(content)  # 解码后的种子内容
+        try:
+            torrent = bdecode(content)  # 解码后的种子内容
+        except:
+            return
         info_dict = torrent[b'info']  # info 字典
         info_hash = sha1(bencode(info_dict)).hexdigest()  # info hash v1
         tid_hash = f'{torrent_id}_{info_hash}'

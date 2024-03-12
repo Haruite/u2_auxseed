@@ -92,6 +92,7 @@ class U2AuxSeed:
             name = self.decode_name(info_dict[b'name'])
             if name:
                 self.client.torrents_add(torrent_files=content, save_path=save_path, is_paused=True)
+                self.hashes_in_client.add(info_hash)
                 if name != filename:
                     self.client.torrents_rename_file(info_hash, 0, filename)
                 logger.info(f'Add torrent {tid}, info_hash {info_hash}')
@@ -108,6 +109,7 @@ class U2AuxSeed:
                     index = i
             if size2 <= max_missing_size:
                 self.client.torrents_add(torrent_files=content, save_path=save_path, is_paused=True)
+                self.hashes_in_client.add(info_hash)
                 self.client.torrents_rename_file(info_hash, index, filename)
             else:
                 logger.error(f'Cannot add torrent {tid}, because missing file size exceeded')
@@ -155,6 +157,7 @@ class U2AuxSeed:
                 logger.error(f'Cannot add torrent {tid}, because missing file size exceeded')
             else:
                 self.client.torrents_add(torrent_files=content, save_path=save_path, is_paused=True)
+                self.hashes_in_client.add(_hash)
                 logger.info(f'Add torrent {tid} -> {path}')
                 if (origin_name := self.decode_name(info_dict[b'name'])) != name:
                     self.client.torrents_rename_file(_hash, 0, name)
@@ -164,6 +167,7 @@ class U2AuxSeed:
                                                                    file_list, info_dict[b'files'])
             base_path = os.path.split(path)[0]
             self.client.torrents_add(torrent_files=content, save_path=base_path, is_paused=True)
+            self.hashes_in_client.add(_hash)
             logger.info(f'Add torrent {tid} -> {path}')
             for torrent_folder, local_folder in folder_name_map.items():
                 local_folder_path = os.path.join(base_path, local_folder)

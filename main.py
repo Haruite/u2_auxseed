@@ -34,7 +34,7 @@ class U2AuxSeed:
                     try:
                         info_hash = sha1(bencode(bdecode(os.path.join(torrents_folder, fn))[b'info'])).hexdigest()
                         self.hash_to_fn[info_hash] = fn
-                    except :
+                    except:
                         pass
             logger.info(f'所有 .torrent 文件读取完毕')
 
@@ -115,6 +115,16 @@ class U2AuxSeed:
             else:
                 logger.error(f'Cannot add torrent {tid}, because missing file size exceeded')
 
+    async def get_torrent_content(self, tid, _hash):
+        if fn := self.hash_to_fn.get(_hash):
+            with open(os.path.join(torrents_folder, fn), 'rb') as fp:
+                content = fp.read()
+            logger.info(f'Read .torrent file {fn}')
+        else:
+            content = await update.fetch_torrent(tid)
+            logger.info(f'Downloaded .torrent file of torrent {tid}')
+        return content
+
     async def aux_seed_single_file(self, path: str):
         max_size = os.path.getsize(path)
         if tid_hash := self.size_id.get(str(max_size)):
@@ -124,21 +134,14 @@ class U2AuxSeed:
                     tid, _hash = _tid_hash.split('_')
                     if _hash not in self.hashes_in_client:
                         logger.info(f'{path} -> torrent {tid}')
-                        if fn := self.hash_to_fn.get(_hash):
-                            with open(os.path.join(torrents_folder, fn), 'rb') as fp:
-                                content = fp.read()
-                            logger.info(f'Read .torrent file {fn}')
-                        else:
-                            content = await update.fetch_torrent(tid)
-                            logger.info(f'Downloaded .torrent file of torrent {tid}')
+                        content = await self.get_torrent_content(tid, _hash)
                         self.add_torrent_to_single_file(path, content, tid, _hash)
                     else:
                         logger.debug(f'{path} -> torrent {tid} already added')
         else:
             logger.debug(f'{path} cannot be auxseeded')
 
-    def add_torrent_to_multi_file(
-            self, path: str, file_list: list[str], content: bytes, tid: str, _hash: str) -> list[str]:
+    def add_torrent_to_multi_file(self, path: str, file_list: list[str], content: bytes, tid: str, _hash: str):
         try:
             info_dict = bdecode(content)[b'info']
         except:
@@ -183,8 +186,6 @@ class U2AuxSeed:
                     except Exception as e:
                         logger.error(e)
 
-        return file_list
-
     def map_torrent_files_to_multi_file(self, path: str, name: str, file_list: list[str],
                                         torrent_files: list[dict[bytes, int | list[bytes]]]) -> dict[str, str]:
         folder_name_map = {}
@@ -212,12 +213,7 @@ class U2AuxSeed:
                         if _torrent_file_path not in file_list:
                             missing_size += _torrent_file[b'length']
                     if missing_size == unmatch_size:
-                        for _torrent_file in torrent_files:
-                            _torrent_file_path = os.path.join(base_path, name, *list(map(self.decode_name, _torrent_file[b'path'])))
-                            for key, val in folder_name_map.items():
-                                _torrent_file_path = _torrent_file_path.replace(key, val)
-                            if _torrent_file_path in file_list:
-                                file_list.remove(_torrent_file_path)
+                        self.remove_files_from_file_list(base_path, name, file_list, torrent_files, folder_name_map)
                         return folder_name_map
 
                     local_file_path = local_files_size_to_path[size][len(base_path) + 1:]
@@ -260,7 +256,16 @@ class U2AuxSeed:
                     if torrent_folder not in folder_name_map:
                         folder_name_map[torrent_folder] = local_folder
 
+        self.remove_files_from_file_list(base_path, name, file_list, torrent_files, folder_name_map)
         return folder_name_map
+
+    def remove_files_from_file_list(self, base_path, name, file_list, torrent_files, folder_name_map):
+        for _torrent_file in torrent_files:
+            _torrent_file_path = os.path.join(base_path, name, *list(map(self.decode_name, _torrent_file[b'path'])))
+            for key, val in folder_name_map.items():
+                _torrent_file_path = _torrent_file_path.replace(key, val)
+            if _torrent_file_path in file_list:
+                file_list.remove(_torrent_file_path)
 
     async def aux_seed_folder(self, path: str):
         max_size = self.get_max_size_in_path(path)
@@ -276,16 +281,10 @@ class U2AuxSeed:
             if _hash in self.hashes_in_client:
                 logger.debug(f'{path} -> torrent {tid} already added')
                 continue
-            if fn := self.hash_to_fn.get(_hash):
-                with open(os.path.join(torrents_folder, fn), 'rb') as fp:
-                    content = fp.read()
-                logger.info(f'Read .torrent file {fn}')
-            else:
-                content = await update.fetch_torrent(tid)
-                logger.info(f'Downloaded .torrent file of torrent {tid}')
-            self.add_torrent_loop(path, file_list, content, tid, _hash)
+            content = await self.get_torrent_content(tid, _hash)
+            await self.add_torrent_loop(path, file_list, content, tid, _hash)
 
-    def add_torrent_loop(self, path: str, file_list: list[str], content: bytes, tid: str, _hash: str):
+    async def add_torrent_loop(self, path: str, file_list: list[str], content: bytes, tid: str, _hash: str):
         cur_len = len(file_list)
         while True:
             pre_len = cur_len
@@ -299,9 +298,7 @@ class U2AuxSeed:
             if isinstance(tid_hash, list):
                 tid_hash = tid_hash[0]
             tid, _hash = tid_hash.split('_')
-            if _hash in self.hashes_in_client:
-                logger.debug(f'{path} -> torrent {tid} already added')
-                continue
+            content = await self.get_torrent_content(tid, _hash)
             cur_len = len(file_list)
             if cur_len == pre_len:
                 break

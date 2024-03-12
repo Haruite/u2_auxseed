@@ -9,7 +9,7 @@ import qbittorrentapi
 from loguru import logger
 
 from config import src_path, duplicate_sizes, host, port, username, password, char_map, max_missing_size, torrents_folder
-from utils.bencoder import bdecode, bencode, bdecode1
+from utils.bencoder import bdecode, bencode
 from web.update import update
 
 logger.add(level='DEBUG', sink=f'{os.getcwd()}/logs/main-{{time}}.log')
@@ -85,10 +85,7 @@ class U2AuxSeed:
         return ''
 
     def add_torrent_to_single_file(self, path: str, content: bytes, tid: str, info_hash: str):
-        try:
-            info_dict = bdecode(content)[b'info']
-        except:
-            info_dict = bdecode1(content)[b'info']
+        info_dict = bdecode(content)[b'info']
         save_path, filename = os.path.split(path)
 
         if b'files' not in info_dict:
@@ -142,10 +139,7 @@ class U2AuxSeed:
             logger.debug(f'{path} cannot be auxseeded')
 
     def add_torrent_to_multi_file(self, path: str, file_list: list[str], content: bytes, tid: str, _hash: str):
-        try:
-            info_dict = bdecode(content)[b'info']
-        except:
-            info_dict = bdecode1(content)[b'info']
+        info_dict = bdecode(content)[b'info']
         if b'files' not in info_dict:
             size1 = info_dict[b'length']
             size2 = 0
@@ -305,9 +299,15 @@ class U2AuxSeed:
 
     async def aux_seed(self, path):
         if os.path.isdir(path):
-            await self.aux_seed_folder(path)
+            try:
+                await self.aux_seed_folder(path)
+            except Exception as e:
+                logger.exception(e)
         else:
-            await self.aux_seed_single_file(path)
+            try:
+                await self.aux_seed_single_file(path)
+            except Exception as e:
+                logger.exception(e)
 
     async def run(self):
         tasks = []

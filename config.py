@@ -1,3 +1,5 @@
+client_type = 'qb'  # type: str
+'客户端类型，de/qb/deluge/qbittorrent'
 cookies = {
     'nexusphp_u2': ''
 }  # type: dict[str, str]
@@ -13,13 +15,13 @@ headers = {
 src_path = r'/de/dl'  # type: str
 '需要辅种的文件所在的文件夹'
 host = 'localhost'  # type: str
-'qb 所在的主机 ip'
+'qb 或 de 所在的主机 ip'
 port = 8080  # type: int
-'qb webui 端口'
+'qb webui 端口或 de 的 daemon 端口'
 username = ''  # type: str
-'qb webui 用户名'
+'qb webui 用户名或 de 的用户名'
 password = ''  # type: str
-'qb webui 密码'
+'qb webui 密码或 de 的密码'
 duplicate_sizes = (
     1073739776, 1073709056, 1073565696, 4681957376, 1000000000, 1073735680, 2200000000, 2000000000,
     4000000000, 1073731584, 1073737728, 1073727488, 13407799296

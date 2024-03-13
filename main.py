@@ -6,11 +6,13 @@ from typing import Optional
 
 import aiohttp
 import qbittorrentapi
+from deluge_client import LocalDelugeRPCClient
 from loguru import logger
 
-from config import src_path, duplicate_sizes, host, port, username, password, char_map, max_missing_size, torrents_folder
+from config import src_path, duplicate_sizes, host, port, username, password, char_map, max_missing_size, torrents_folder, client_type
 from utils.bencoder import bdecode, bencode
 from web.update import update
+from client import Deluge, Qbittorrent
 
 logger.add(level='DEBUG', sink=f'{os.getcwd()}/logs/main-{{time}}.log')
 
@@ -24,8 +26,11 @@ class U2AuxSeed:
         logger.info(f'输入 y/n')
         if input().lower() == 'y':
             asyncio.run(update.main())
-        self.client = qbittorrentapi.Client(host=host, port=port, username=username, password=password)
-        self.hashes_in_client = {torrent.hash for torrent in self.client.torrents_info()}
+        if client_type in ('QB', 'qb', 'qbittorrent'):
+            self.client = Qbittorrent(qbittorrentapi.Client(host=host, port=port, username=username, password=password))
+        elif client_type in ('DE', 'de', 'deluge'):
+            self.client = Deluge(LocalDelugeRPCClient(host=host, port=port, username=username, password=password))
+        self.hashes_in_client = self.client.get_hashes()
         self.hash_to_fn = {}
         if torrents_folder:
             logger.info(f'开始读取 {torrents_folder} 中的 .torrent 文件...')
@@ -94,26 +99,26 @@ class U2AuxSeed:
         if b'files' not in info_dict:
             name = self.decode_name(info_dict[b'name'])
             if name:
-                self.client.torrents_add(torrent_files=content, save_path=save_path, is_paused=True)
+                self.client.add_torrent(content, save_path, True)
                 self.hashes_in_client.add(info_hash)
                 if name != filename:
-                    self.client.torrents_rename_file(info_hash, 0, filename)
+                    self.client.rename_file(info_hash, name, filename)
                 logger.info(f'Add torrent {tid}, info_hash {info_hash}')
             else:
                 logger.error(f'Cannot add torrent {tid}, because file name cannot be decoded')
         else:
             size1 = os.path.getsize(path)
             size2 = 0
-            index = 0
+            old_name = ''
             for i, file in enumerate(info_dict[b'files']):
                 if (length := file[b'length']) != size1:
                     size2 += length
                 else:
-                    index = i
+                    old_name = os.path.join(self.decode_name(file[b'name']), *map(self.decode_name, file[b'path']))
             if size2 <= max_missing_size:
-                self.client.torrents_add(torrent_files=content, save_path=save_path, is_paused=True)
+                self.client.add_torrent(content, save_path, True)
                 self.hashes_in_client.add(info_hash)
-                self.client.torrents_rename_file(info_hash, index, filename)
+                self.client.rename_file(info_hash, old_name, filename)
             else:
                 logger.error(f'Cannot add torrent {tid}, because missing file size exceeded')
 
@@ -162,30 +167,30 @@ class U2AuxSeed:
             if size2 > max_missing_size:
                 logger.error(f'Cannot add torrent {tid}, because missing file size exceeded')
             else:
-                self.client.torrents_add(torrent_files=content, save_path=save_path, is_paused=True)
+                self.client.add_torrent(content, save_path, True)
                 self.hashes_in_client.add(_hash)
                 logger.info(f'Add torrent {tid} -> {path}')
                 if (origin_name := self.decode_name(info_dict[b'name'])) != name:
-                    self.client.torrents_rename_file(_hash, 0, name)
+                    self.client.rename_file(_hash, origin_name, name)
                     logger.info(f'Rename file of torrent {tid}, {origin_name} -> {name}')
         else:
             folder_name_map = self.map_torrent_files_to_multi_file(path, self.decode_name(info_dict[b'name']),
                                                                    file_list, info_dict[b'files'])
             base_path = os.path.split(path)[0]
-            self.client.torrents_add(torrent_files=content, save_path=base_path, is_paused=True)
+            self.client.add_torrent(content, base_path, True)
             self.hashes_in_client.add(_hash)
             logger.info(f'Add torrent {tid} -> {path}')
             for torrent_folder, local_folder in folder_name_map.items():
                 local_folder_path = os.path.join(base_path, local_folder)
                 if os.path.exists(local_folder_path) and not os.path.isdir(local_folder_path):
                     try:
-                        self.client.torrents_rename_file(torrent_hash=_hash, old_path=torrent_folder, new_path=local_folder)
+                        self.client.rename_file(_hash, torrent_folder, local_folder)
                         logger.info(f'Rename file of torrent {tid}, {torrent_folder} -> {local_folder}')
                     except Exception as e:
                         logger.error(e)
                 else:
                     try:
-                        self.client.torrents_rename_folder(torrent_hash=_hash, old_path=torrent_folder, new_path=local_folder)
+                        self.client.rename_folder(_hash, torrent_folder, local_folder)
                         logger.info(f'Rename folder of torrent {tid}, {torrent_folder} -> {local_folder}')
                     except Exception as e:
                         logger.error(e)

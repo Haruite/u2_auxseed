@@ -181,6 +181,10 @@ class U2AuxSeed:
             self.hashes_in_client.add(_hash)
             logger.info(f'Add torrent {tid} -> {path}')
             for torrent_folder, local_folder in folder_name_map.items():
+                torrent_folder_path = os.path.join(base_path, torrent_folder)
+                if os.path.exists(torrent_folder_path):
+                    logger.error(f'Folder {torrent_folder_path} existed')
+                    continue
                 local_folder_path = os.path.join(base_path, local_folder)
                 if os.path.exists(local_folder_path) and not os.path.isdir(local_folder_path):
                     try:

@@ -27,6 +27,7 @@ class Update:
             self.size_id = json.load(fp)
         self.tid_updated = False
         self.session = None
+        self.old_tid = self.newest_tid
 
     async def main(self):
         logger.info('开始更新数据')
@@ -57,7 +58,7 @@ class Update:
                         f.write(str(tid))
                     self.newest_tid = tid
                     self.tid_updated = True
-                if tid == self.newest_tid:
+                if tid == self.old_tid:
                     self.end = True
                     break
                 else:

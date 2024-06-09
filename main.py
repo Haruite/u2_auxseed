@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from hashlib import sha1
+from time import sleep
 from typing import Optional
 
 import aiohttp
@@ -179,6 +180,7 @@ class U2AuxSeed:
             base_path = os.path.split(path)[0]
             self.client.add_torrent(content, base_path, True)
             self.hashes_in_client.add(_hash)
+            sleep(0.1)
             logger.info(f'Add torrent {tid} -> {path}')
             for torrent_folder, local_folder in folder_name_map.items():
                 torrent_folder_path = os.path.join(base_path, torrent_folder)
